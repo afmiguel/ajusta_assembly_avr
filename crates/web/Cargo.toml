@@ -1,0 +1,28 @@
+[package]
+name = "ajusta-asm-web"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+ajusta-asm-core.workspace = true
+console_error_panic_hook = "0.1.7"
+js-sys = "0.3"
+leptos = { version = "0.8.22", features = ["csr"] }
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+web-sys = { version = "0.3", features = [
+    "Blob",
+    "BlobPropertyBag",
+    "Clipboard",
+    "DataTransfer",
+    "DragEvent",
+    "File",
+    "FileList",
+    "HtmlAnchorElement",
+    "HtmlInputElement",
+    "Navigator",
+    "Url",
+] }

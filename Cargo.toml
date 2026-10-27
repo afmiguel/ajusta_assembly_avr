@@ -1,0 +1,18 @@
+[workspace]
+resolver = "3"
+members = ["crates/core", "crates/cli", "crates/web"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+authors = ["Afonso Miguel"]
+license = "MIT"
+
+[workspace.dependencies]
+ajusta-asm-core = { path = "crates/core" }
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
