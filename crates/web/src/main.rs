@@ -5,9 +5,10 @@ use leptos::prelude::*;
 use leptos::task::spawn_local;
 use wasm_bindgen::{JsCast, JsValue};
 use wasm_bindgen_futures::JsFuture;
-use web_sys::{Blob, BlobPropertyBag, File, HtmlAnchorElement, Url};
+use web_sys::{
+    Blob, BlobPropertyBag, File, HtmlAnchorElement, HtmlDocument, HtmlTextAreaElement, Url,
+};
 
-const EXEMPLO: &str = include_str!("exemplo.lst");
 const NOME_SAIDA: &str = "codigo_ajustado.asm";
 
 fn main() {
@@ -47,13 +48,20 @@ fn App() -> impl IntoView {
         });
     };
 
+    let saida = NodeRef::<leptos::html::Textarea>::new();
+
     let copiar = move |_| {
-        let texto = resultado.with(|r| r.texto.clone());
+        let Some(area) = saida.get() else { return };
+        if copiar_por_selecao(&area) {
+            notificar("Copiado para a área de transferência".into());
+            return;
+        }
         spawn_local(async move {
-            let promessa = window().navigator().clipboard().write_text(&texto);
-            match JsFuture::from(promessa).await {
-                Ok(_) => notificar("Copiado para a área de transferência".into()),
-                Err(_) => notificar("O navegador não permitiu copiar".into()),
+            if copiar_por_clipboard_api(&area.value()).await {
+                notificar("Copiado para a área de transferência".into());
+            } else {
+                area.select();
+                notificar("Texto selecionado: use Ctrl+C (⌘C) para copiar".into());
             }
         });
     };
@@ -99,12 +107,6 @@ fn App() -> impl IntoView {
                         </label>
                         <button
                             class="botao secundario"
-                            on:click=move |_| entrada.set(EXEMPLO.to_owned())
-                        >
-                            "Exemplo"
-                        </button>
-                        <button
-                            class="botao secundario"
                             disabled=move || entrada.with(String::is_empty)
                             on:click=move |_| entrada.set(String::new())
                         >
@@ -128,6 +130,7 @@ fn App() -> impl IntoView {
                     </div>
                 </div>
                 <textarea
+                    node_ref=saida
                     readonly
                     spellcheck="false"
                     placeholder="O resultado aparece aqui."
@@ -263,6 +266,30 @@ fn milhar(n: usize) -> String {
         saida.push(c);
     }
     saida
+}
+
+/// Copia selecionando o texto da área. `execCommand` é obsoleto, mas, ao
+/// contrário da Clipboard API, funciona dentro de iframes que não têm a
+/// permissão `clipboard-write` (como as páginas do Canvas LMS).
+fn copiar_por_selecao(area: &HtmlTextAreaElement) -> bool {
+    area.select();
+    let copiou = document()
+        .unchecked_into::<HtmlDocument>()
+        .exec_command("copy")
+        .unwrap_or(false);
+    let _ = area.set_selection_range(0, 0);
+    copiou
+}
+
+async fn copiar_por_clipboard_api(texto: &str) -> bool {
+    let navigator = window().navigator();
+    // Ausente em contextos inseguros (http) de alguns navegadores.
+    let disponivel =
+        js_sys::Reflect::get(&navigator, &"clipboard".into()).is_ok_and(|c| !c.is_undefined());
+    disponivel
+        && JsFuture::from(navigator.clipboard().write_text(texto))
+            .await
+            .is_ok()
 }
 
 fn baixar_texto(texto: &str, nome: &str) -> Result<(), JsValue> {

@@ -68,3 +68,16 @@ cargo test --workspace --exclude ajusta-asm-web
 O workflow `.github/workflows/pages.yml` roda testes e clippy e publica
 `crates/web/dist` a cada push na `main`. No repositório, em
 **Settings → Pages → Source**, escolha **GitHub Actions**.
+
+## Embutir no Canvas LMS (ou outro site)
+
+```html
+<iframe src="https://afmiguel.github.io/ajusta_assembly_avr/"
+        width="100%" height="720" allow="clipboard-write"></iframe>
+```
+
+Dentro de um iframe, o navegador só libera a Clipboard API se o site que
+embute conceder `allow="clipboard-write"` — e o editor do Canvas pode remover
+esse atributo. Por isso o botão **Copiar** usa primeiro a cópia por seleção
+(`execCommand("copy")`), que funciona sem essa permissão; se nada funcionar,
+o texto fica selecionado para copiar com Ctrl+C (⌘C).
