@@ -1,9 +1,30 @@
 # Ajusta Assembly AVR
 
-Converte a listagem gerada pelo `avr-objdump -D` em assembly que pode ser
-remontado no Atmel Studio (Microchip Studio).
+Desmonta o arquivo `.hex` de um AVR e gera assembly que pode ser remontado no
+Atmel Studio (Microchip Studio) — sem precisar do `avr-objdump`. Também aceita
+a listagem já gerada pelo `avr-objdump -D`.
+
+**Página:** https://afmiguel.github.io/ajusta_assembly_avr/
 
 Versão em Rust/WebAssembly do antigo `ajusta_assembly.html` (PyScript).
+
+## Desmontagem do .hex
+
+O desmontador lê o Intel HEX e gera a mesma listagem do
+`avr-objdump -D -z -m avr5`, que segue para a conversão abaixo. A
+compatibilidade é verificada nos testes (`crates/core/tests/desmontador.rs`):
+
+- a listagem de um programa real (16 mil linhas) é idêntica à gerada pelo
+  `avr-objdump` do Atmel Studio 7, e o `.asm` final é idêntico ao do script Python;
+- todas as 65.536 words possíveis são comparadas com o `avr-objdump`
+  instalado na máquina (o teste é pulado se ele não existir).
+
+Duas diferenças intencionais em relação ao `avr-objdump -D` sem opções, que
+deslocariam os endereços do programa remontado:
+
+- sequências de zeros são desmontadas como `nop` (o objdump as troca por `...`;
+  equivale ao `-z`);
+- lacunas entre trechos do `.hex` geram `.org` no assembly.
 
 ## O que a conversão faz
 
@@ -17,6 +38,8 @@ Versão em Rust/WebAssembly do antigo `ajusta_assembly.html` (PyScript).
 - Endereços de `jmp`/`call` e de **todos** os desvios relativos (`rjmp`,
   `rcall`, `br*`) são convertidos de bytes para words (÷ 2).
 - A sequência final de `.dw 0xffff` (flash apagada) vira uma única linha.
+- Saltos de endereço viram `.org`; um `...` do objdump (zeros omitidos) vira
+  a quantidade certa de `nop`.
 - Cabeçalhos são ignorados; linhas de instrução que não puderam ser lidas
   aparecem como avisos, com o número da linha.
 
@@ -51,11 +74,19 @@ trunk serve --open
 ### Linha de comando
 
 ```bash
-cargo run -p ajusta-asm -- listagem.lst -o codigo.asm
+cargo run -p ajusta-asm -- prog.hex -o prog.asm
 ```
 
-Opções: `--manter-preenchimento`, `--comentar-endereco`. Sem arquivo, lê da
-entrada padrão e escreve na saída padrão.
+A entrada pode ser o `.hex` ou uma listagem do avr-objdump (o tipo é
+detectado pelo conteúdo). Opções: `--listagem` (só desmonta, como o
+`avr-objdump -D -z -m avr5`), `--manter-preenchimento`, `--comentar-endereco`.
+Sem arquivo, lê da entrada padrão e escreve na saída padrão.
+
+No Windows, substitui o `avr-objdump.exe -D -m avr5 %1` mais o ajuste:
+
+```bat
+ajusta-asm.exe %1 -o "%~dpn1.asm"
+```
 
 ### Testes
 

@@ -41,6 +41,15 @@ pub fn emitir(instr: &Instrucao<'_>, comentar_endereco: bool) -> Result<String, 
     Ok(linha)
 }
 
+/// Diretiva que reposiciona o montador (endereço em words).
+pub fn linha_org(endereco_bytes: u32) -> String {
+    format!(
+        "\t{:<LARGURA_MNEMONICO$}{}\t",
+        ".org",
+        em_words(endereco_bytes)
+    )
+}
+
 /// Linha que representa uma word de flash apagada.
 pub fn linha_preenchimento() -> String {
     format!("\t{:<LARGURA_MNEMONICO$}0xffff", ".dw")
@@ -100,6 +109,7 @@ mod tests {
         Instrucao {
             linha: 1,
             endereco,
+            tamanho: 2,
             mnemonico,
             operandos: operandos.to_vec(),
             comentario,

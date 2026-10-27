@@ -15,6 +15,8 @@ pub struct Instrucao<'a> {
     pub linha: usize,
     /// Endereço em bytes, como impresso pelo objdump.
     pub endereco: u32,
+    /// Quantidade de bytes da instrução (2 ou 4).
+    pub tamanho: u32,
     pub mnemonico: &'a str,
     pub operandos: Vec<&'a str>,
     /// Texto após o `;`, sem espaços nas pontas.
@@ -44,7 +46,7 @@ pub fn ler_linha(linha: usize, texto: &str) -> Linha<'_> {
     };
 
     let mut campos = resto.split('\t');
-    let _bytes = campos.next();
+    let tamanho = campos.next().map_or(0, |b| b.split_whitespace().count()) as u32;
     let mnemonico = campos.next().map(str::trim).unwrap_or_default();
     if mnemonico.is_empty() {
         return Linha::Invalida("instrução sem mnemônico");
@@ -69,6 +71,7 @@ pub fn ler_linha(linha: usize, texto: &str) -> Linha<'_> {
     Linha::Instrucao(Instrucao {
         linha,
         endereco,
+        tamanho,
         mnemonico,
         operandos,
         comentario,
@@ -90,6 +93,7 @@ mod tests {
     fn instrucao_completa() {
         let i = instr("      8a:\t02 c0       \trjmp\t.+4      \t;  0x90");
         assert_eq!(i.endereco, 0x8a);
+        assert_eq!(i.tamanho, 2);
         assert_eq!(i.mnemonico, "rjmp");
         assert_eq!(i.operandos, [".+4"]);
         assert_eq!(i.comentario, Some("0x90"));

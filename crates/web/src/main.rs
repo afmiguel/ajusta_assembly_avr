@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use ajusta_asm_core::{Opcoes, Resultado, converter};
+use ajusta_asm_core::{Opcoes, Resultado, converter, desmontar, eh_intel_hex};
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use wasm_bindgen::{JsCast, JsValue};
@@ -9,7 +9,7 @@ use web_sys::{
     Blob, BlobPropertyBag, File, HtmlAnchorElement, HtmlDocument, HtmlTextAreaElement, Url,
 };
 
-const NOME_SAIDA: &str = "codigo_ajustado.asm";
+const NOME_SAIDA_PADRAO: &str = "codigo_ajustado.asm";
 
 fn main() {
     console_error_panic_hook::set_once();
@@ -22,6 +22,7 @@ fn App() -> impl IntoView {
     let compactar = RwSignal::new(true);
     let comentar = RwSignal::new(false);
     let aviso = RwSignal::new(None::<String>);
+    let nome_saida = RwSignal::new(NOME_SAIDA_PADRAO.to_owned());
 
     let resultado = Memo::new(move |_| {
         let opcoes = Opcoes {
@@ -40,8 +41,25 @@ fn App() -> impl IntoView {
         spawn_local(async move {
             match JsFuture::from(arquivo.text()).await {
                 Ok(texto) => {
-                    entrada.set(texto.as_string().unwrap_or_default());
-                    notificar(format!("{} carregado", arquivo.name()));
+                    let texto = texto.as_string().unwrap_or_default();
+                    let nome = arquivo.name();
+                    nome_saida.set(nome_asm(&nome));
+                    // Um .hex é desmontado na hora, para a listagem aparecer na entrada.
+                    if eh_intel_hex(&texto) {
+                        match desmontar(&texto, &nome) {
+                            Ok(listagem) => {
+                                entrada.set(listagem);
+                                notificar(format!("{nome} desmontado"));
+                            }
+                            Err(erro) => {
+                                entrada.set(texto);
+                                notificar(format!("{nome}: Intel HEX inválido ({erro})"));
+                            }
+                        }
+                    } else {
+                        entrada.set(texto);
+                        notificar(format!("{nome} carregado"));
+                    }
                 }
                 Err(_) => notificar("Não foi possível ler o arquivo".into()),
             }
@@ -68,7 +86,7 @@ fn App() -> impl IntoView {
 
     let baixar = move |_| {
         if resultado
-            .with(|r| baixar_texto(&r.texto, NOME_SAIDA))
+            .with(|r| nome_saida.with(|nome| baixar_texto(&r.texto, nome)))
             .is_err()
         {
             notificar("Não foi possível gerar o download".into());
@@ -81,21 +99,21 @@ fn App() -> impl IntoView {
         <header>
             <h1>"Ajusta Assembly " <span class="destaque">"AVR"</span></h1>
             <p>
-                "Converte a listagem do " <code>"avr-objdump -D"</code>
-                " em assembly que pode ser montado no Atmel Studio."
+                "Desmonta o " <code>".hex"</code> " gerado pelo compilador (ou converte a listagem do "
+                <code>"avr-objdump -D"</code> ") em assembly que pode ser montado no Atmel Studio."
             </p>
         </header>
 
         <main>
             <section class="painel">
                 <div class="painel-topo">
-                    <h2>"Listagem do avr-objdump"</h2>
+                    <h2>"Arquivo .hex ou listagem"</h2>
                     <div class="acoes">
                         <label class="botao secundario">
-                            "Abrir arquivo"
+                            "Abrir .hex"
                             <input
                                 type="file"
-                                accept=".lst,.txt,.asm,.s,.dis,text/plain"
+                                accept=".hex,.ihex,.ihx,.lst,.txt,.asm,.s,.dis,text/plain"
                                 on:change:target=move |ev| {
                                     let input = ev.target();
                                     if let Some(arquivo) = input.files().and_then(|f| f.get(0)) {
@@ -108,7 +126,10 @@ fn App() -> impl IntoView {
                         <button
                             class="botao secundario"
                             disabled=move || entrada.with(String::is_empty)
-                            on:click=move |_| entrada.set(String::new())
+                            on:click=move |_| {
+                                entrada.set(String::new());
+                                nome_saida.set(NOME_SAIDA_PADRAO.to_owned());
+                            }
                         >
                             "Limpar"
                         </button>
@@ -173,7 +194,7 @@ fn AreaEntrada(
         <div class="soltar" class:ativo=move || arrastando.get()>
             <textarea
                 spellcheck="false"
-                placeholder="Cole aqui a listagem ou arraste o arquivo para cá."
+                placeholder="Abra o arquivo .hex, arraste-o para cá ou cole o conteúdo (Intel HEX ou listagem do avr-objdump)."
                 bind:value=entrada
                 on:dragover=move |ev| {
                     ev.prevent_default();
@@ -253,6 +274,12 @@ fn Resumo(resultado: Memo<Resultado>) -> impl IntoView {
             </Show>
         </div>
     }
+}
+
+/// `prog.hex` → `prog.asm`.
+fn nome_asm(nome: &str) -> String {
+    let base = nome.rsplit_once('.').map_or(nome, |(base, _)| base);
+    format!("{base}.asm")
 }
 
 /// Formata com separador de milhar, como em "16.276".
