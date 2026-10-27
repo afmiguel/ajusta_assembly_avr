@@ -13,7 +13,7 @@ struct Args {
     /// Arquivo .hex ou listagem do avr-objdump (padrão: entrada padrão).
     entrada: Option<PathBuf>,
     /// Arquivo de saída (padrão: saída padrão).
-    #[arg(short, long)]
+    #[arg(short = 'o', long)]
     saida: Option<PathBuf>,
     /// Mantém toda a sequência final de `.dw 0xffff`.
     #[arg(long)]
